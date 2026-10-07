@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Build output and caches
+dist/
+build/
+coverage/
+.vite/
+.cache/
+__pycache__/
+*.py[cod]
+
+# Local editor and OS files
+.DS_Store
+Thumbs.db
