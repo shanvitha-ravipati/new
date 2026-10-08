@@ -56,7 +56,7 @@ export default function AuthPage() {
 
         <div className="auth-intro">
           <span className="eyebrow">YOUR BAG, YOUR DATA</span>
-          <h1>{isSignUp ? "Create your account" : "Welcome back"}</h1>
+          <h1>{isSignUp ? "Create your account" : "Welcome"}</h1>
           <p>{isSignUp ? "Create an account to access your Smart Bag dashboard." : "Sign in to view your Smart Bag dashboard."}</p>
         </div>
 
