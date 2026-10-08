@@ -36,8 +36,6 @@ void sendSensorReading() {
   int batteryPercent = 82 - (demoTick % 20);
   bool motionDetected = (demoTick % 17 == 0);
   const char* bagStatus = (demoTick % 23 == 0) ? "OPEN" : "CLOSED";
-  float latitude = 17.3850;
-  float longitude = 78.4867;
   demoTick++;
 
   StaticJsonDocument<256> document;
@@ -47,8 +45,6 @@ void sendSensorReading() {
   document["battery"] = batteryPercent;
   document["bagStatus"] = bagStatus;
   document["motion"] = motionDetected;
-  document["latitude"] = latitude;
-  document["longitude"] = longitude;
 
   String requestBody;
   serializeJson(document, requestBody);

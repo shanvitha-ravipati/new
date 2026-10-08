@@ -1,4 +1,3 @@
-const STORAGE_KEY = "smartbag-dashboard-data";
 const OFFLINE_AFTER_MS = 15_000;
 
 const THRESHOLDS = {
@@ -17,23 +16,30 @@ function storageError(error) {
   return new Error("Browser storage is unavailable. Enable local storage for this site and try again.");
 }
 
-function readStore() {
+function getStorageKey(userId) {
+  if (!userId) throw new Error("You must be signed in to access Smart Bag data.");
+  return `smartbag-dashboard-data:${userId}`;
+}
+
+function readStore(userId) {
   try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (!saved) return { readings: [], alerts: [] };
+    const saved = window.localStorage.getItem(getStorageKey(userId));
+    if (!saved) return { readings: [], alerts: [], timetable: [], remindedClasses: [] };
     const store = JSON.parse(saved);
     if (!Array.isArray(store.readings) || !Array.isArray(store.alerts)) {
       throw new SyntaxError("Invalid saved data shape.");
     }
+    if (!Array.isArray(store.timetable)) store.timetable = [];
+    if (!Array.isArray(store.remindedClasses)) store.remindedClasses = [];
     return store;
   } catch (error) {
     throw storageError(error);
   }
 }
 
-function writeStore(store) {
+function writeStore(userId, store) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    window.localStorage.setItem(getStorageKey(userId), JSON.stringify(store));
   } catch (error) {
     throw storageError(error);
   }
@@ -42,6 +48,14 @@ function writeStore(store) {
 function createId() {
   return globalThis.crypto?.randomUUID?.() ||
     `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function sortTimetable(classes) {
+  return classes.sort((first, second) => {
+    const firstWeekday = (first.day + 6) % 7;
+    const secondWeekday = (second.day + 6) % 7;
+    return firstWeekday - secondWeekday || first.time.localeCompare(second.time);
+  });
 }
 
 function addAlert(store, reading, type, severity, message) {
@@ -98,8 +112,8 @@ function addAutomaticAlerts(store, reading, previous) {
   }
 }
 
-export async function getLatest() {
-  const store = readStore();
+export async function getLatest(userId) {
+  const store = readStore(userId);
   const latest = store.readings.at(-1);
   if (!latest) {
     const error = new Error("No sensor data has been saved yet.");
@@ -114,16 +128,16 @@ export async function getLatest() {
   };
 }
 
-export async function getHistory(limit = 30) {
-  return readStore().readings.slice(-limit);
+export async function getHistory(userId, limit = 30) {
+  return readStore(userId).readings.slice(-limit);
 }
 
-export async function getAlerts() {
-  return readStore().alerts.filter((alert) => !alert.resolved).slice(0, 100);
+export async function getAlerts(userId) {
+  return readStore(userId).alerts.filter((alert) => !alert.resolved).slice(0, 100);
 }
 
-export async function sendMockReading() {
-  const store = readStore();
+export async function sendMockReading(userId) {
+  const store = readStore(userId);
   const previous = store.readings.at(-1);
   const reading = {
     _id: createId(),
@@ -133,23 +147,74 @@ export async function sendMockReading() {
     battery: 70 + Math.floor(Math.random() * 30),
     bagStatus: Math.random() > 0.96 ? "OPEN" : "CLOSED",
     motion: Math.random() > 0.94,
-    latitude: Number((17.385 + (Math.random() - 0.5) * 0.008).toFixed(6)),
-    longitude: Number((78.4867 + (Math.random() - 0.5) * 0.008).toFixed(6)),
     timestamp: new Date().toISOString()
   };
   store.readings.push(reading);
   store.readings = store.readings.slice(-500);
   addAutomaticAlerts(store, reading, previous);
   store.alerts = store.alerts.slice(0, 100);
-  writeStore(store);
+  writeStore(userId, store);
   return reading;
 }
 
-export async function resolveAlert(id) {
-  const store = readStore();
+export async function resolveAlert(userId, id) {
+  const store = readStore(userId);
   const alert = store.alerts.find((item) => item._id === id);
   if (!alert) throw new Error("This alert was not found in browser storage.");
   alert.resolved = true;
-  writeStore(store);
+  writeStore(userId, store);
   return alert;
+}
+
+export async function getTimetable(userId) {
+  return sortTimetable(readStore(userId).timetable);
+}
+
+export async function addTimetableClass(userId, classItem) {
+  const subject = classItem.subject.trim();
+  if (!subject) throw new Error("Enter a subject name.");
+  if (!Number.isInteger(classItem.day) || classItem.day < 0 || classItem.day > 6) {
+    throw new Error("Choose a valid day of the week.");
+  }
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(classItem.time)) {
+    throw new Error("Choose a valid class start time.");
+  }
+  const store = readStore(userId);
+  const duplicate = store.timetable.some(
+    (item) => item.day === classItem.day && item.time === classItem.time && item.subject.toLowerCase() === subject.toLowerCase()
+  );
+  if (duplicate) throw new Error("This subject is already scheduled at that time.");
+
+  const savedClass = { id: createId(), subject, day: classItem.day, time: classItem.time };
+  store.timetable.push(savedClass);
+  sortTimetable(store.timetable);
+  writeStore(userId, store);
+  return store.timetable;
+}
+
+export async function removeTimetableClass(userId, id) {
+  const store = readStore(userId);
+  store.timetable = store.timetable.filter((item) => item.id !== id);
+  store.remindedClasses = store.remindedClasses.filter((key) => !key.startsWith(`${id}:`));
+  sortTimetable(store.timetable);
+  writeStore(userId, store);
+  return store.timetable;
+}
+
+export async function checkClassReminders(userId, now = new Date()) {
+  const store = readStore(userId);
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const reminders = store.timetable.filter((item) => {
+    const reminderKey = `${item.id}:${today}`;
+    return item.day === now.getDay() && item.time === currentTime && !store.remindedClasses.includes(reminderKey);
+  });
+
+  if (reminders.length) {
+    const reminderKeys = reminders.map((item) => `${item.id}:${today}`);
+    store.remindedClasses.push(...reminderKeys);
+    store.remindedClasses = store.remindedClasses.slice(-300);
+    writeStore(userId, store);
+  }
+  return reminders;
 }

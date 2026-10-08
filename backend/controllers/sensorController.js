@@ -40,15 +40,6 @@ function validateReading(body) {
   if (!["OPEN", "CLOSED"].includes(body.bagStatus)) errors.push("bagStatus must be OPEN or CLOSED.");
   if (typeof body.motion !== "boolean") errors.push("motion must be true or false.");
 
-  const hasLatitude = body.latitude !== undefined && body.latitude !== null;
-  const hasLongitude = body.longitude !== undefined && body.longitude !== null;
-  if (hasLatitude !== hasLongitude) errors.push("latitude and longitude must both be provided, or both be null.");
-  if (hasLatitude && (typeof body.latitude !== "number" || body.latitude < -90 || body.latitude > 90)) {
-    errors.push("latitude must be a number between -90 and 90.");
-  }
-  if (hasLongitude && (typeof body.longitude !== "number" || body.longitude < -180 || body.longitude > 180)) {
-    errors.push("longitude must be a number between -180 and 180.");
-  }
   return errors;
 }
 
@@ -83,9 +74,7 @@ async function postSensorData(req, res, next) {
       temperature: body.temperature,
       battery: body.battery,
       bagStatus: body.bagStatus,
-      motion: body.motion,
-      latitude: body.latitude ?? null,
-      longitude: body.longitude ?? null
+      motion: body.motion
     };
     const previous = await SensorData.findOne({ bagId: reading.bagId }).sort({ timestamp: -1 });
     const saved = await SensorData.create(reading);
@@ -141,9 +130,7 @@ async function postMockSensorData(req, res, next) {
       temperature: Number((23 + Math.random() * 9).toFixed(1)),
       battery: Math.max(5, Math.floor(85 - (Date.now() % 70_000) / 1_000)),
       bagStatus: Math.random() > 0.96 ? "OPEN" : "CLOSED",
-      motion: Math.random() > 0.94,
-      latitude: Number((17.385 + (Math.random() - 0.5) * 0.008).toFixed(6)),
-      longitude: Number((78.4867 + (Math.random() - 0.5) * 0.008).toFixed(6))
+      motion: Math.random() > 0.94
     };
     const saved = await SensorData.create(reading);
     await checkAlerts(reading, previous);

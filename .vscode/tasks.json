@@ -1,0 +1,66 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Final Smart Bag git status",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short",
+				"--branch"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify main push refs",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"rev-parse",
+				"main",
+				"origin/main"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Retry main branch push",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"push",
+				"origin",
+				"main"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check remote main branch",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"ls-remote",
+				"origin",
+				"refs/heads/main"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Clean task config and final status",
+			"type": "shell",
+			"command": "Remove-Item",
+			"args": [
+				"-LiteralPath",
+				".vscode",
+				"-Recurse",
+				"-Force; git status --short --branch"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

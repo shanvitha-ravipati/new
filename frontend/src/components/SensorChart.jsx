@@ -9,7 +9,7 @@ export default function SensorChart({ history }) {
   return (
     <section className="panel chart-panel">
       <div className="panel-heading">
-        <div><span className="eyebrow">SENSOR TRENDS</span><h2>Reading history</h2></div>
+        <div><span className="eyebrow">SENSOR ACTIVITY</span><h2>Reading history</h2></div>
         <span className="chart-period">Latest {data.length} readings</span>
       </div>
       {data.length < 2 ? (

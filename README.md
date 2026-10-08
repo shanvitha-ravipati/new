@@ -1,30 +1,34 @@
 # Smart Bag Monitoring System
 
-A beginner-friendly React dashboard prototype for an ESP32 smart bag. In this version, the dashboard saves sensor readings and alerts in the browser's `localStorage`, so the demo works without MongoDB or a running backend.
+A beginner-friendly React dashboard prototype for an ESP32 smart bag. Firebase Authentication handles account sign-up and sign-in. Sensor readings and alerts are saved in the browser's `localStorage`, so the demo works without MongoDB or a running backend.
 
 > **Important:** Browser `localStorage` belongs to one browser on one device. An ESP32 cannot send data directly to it. To receive real ESP32 readings, a server/API is required. The `backend/` folder remains as an optional, separate MongoDB-backed ESP32 API; it is not used by this local-storage dashboard.
 
 ## Features
 
+- Firebase email/password sign-up, sign-in, persistent sessions, and sign-out
+- Dashboard requires a signed-in Firebase account
+- Local readings are partitioned by Firebase account in the browser
+- Weekly class timetable with in-app and optional browser notifications at class start
 - Responsive dashboard with weight, temperature, battery, bag open/closed, and motion status
 - Readings persist in browser storage across page reloads
 - Demo mode generates readings every five seconds; dashboard refreshes every four seconds
 - Automatically generated and deduplicated alerts for low battery, excessive weight, high temperature, motion, and opening the bag
 - Resolve alerts in the dashboard
-- GPS coordinates and OpenStreetMap view
 - Temperature, weight, and battery history chart
 - Connection is marked offline when the last saved reading is older than 15 seconds
 - Keeps the latest 500 readings and 100 alerts in browser storage
 
 ## Technologies and architecture
 
-The dashboard uses React, Vite, JavaScript, Recharts, React Leaflet, Leaflet, and lucide-react.
+The dashboard uses React, Vite, JavaScript, Firebase Authentication, Recharts, and lucide-react.
 
 ```text
-Demo generator -> React dashboard <-> browser localStorage
-                                     ├── sensor readings
-                                     ├── sensor history
-                                     └── alerts
+Firebase Authentication -> React dashboard <-> browser localStorage
+Demo generator ----------------------------->   ├── readings by Firebase UID
+                                                ├── sensor history
+                                                ├── alerts
+                                                └── weekly timetable
 ```
 
 The optional ESP32 API uses Node.js, Express, Mongoose, and MongoDB, but the dashboard does not call that API in local-storage mode.
@@ -37,8 +41,9 @@ smartbackpack/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   ├── pages/
+│   │   ├── pages/            # Dashboard and Firebase sign-in/sign-up
 │   │   ├── services/localStorage.js # Browser localStorage data service
+│   │   ├── firebase.js       # Firebase app and Authentication setup
 │   │   ├── App.jsx
 │   │   ├── index.css
 │   │   └── main.jsx
@@ -56,15 +61,37 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite, usually `http://localhost:5173`, and press **Run live demo**. Sensor readings and alerts will be saved in that browser's local storage. Stop the demo to stop generating readings.
+### Configure Firebase Authentication
 
-The root `package.json` is an npm workspace for `frontend`, so these commands work directly from the project root. Alternatively, you can run them from `frontend/`. No `.env` file is required in local-storage mode. To clear the saved demo data, clear site data/local storage for the Vite site in the browser's developer tools.
+1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/).
+2. Open **Authentication → Sign-in method** and enable **Email/Password**.
+3. In **Project settings → General**, register a Web app and copy its web configuration values.
+4. Copy `frontend/.env.example` to `frontend/.env` and fill in the values:
+
+```dotenv
+VITE_FIREBASE_API_KEY=your_firebase_web_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_APP_ID=your_firebase_web_app_id
+```
+
+5. Restart Vite after changing `.env`.
+
+Firebase web configuration is intended to be present in a client app; protect your project with Firebase Authentication settings and appropriate Firebase Security Rules if you later use Firebase databases or storage. Never put service-account private keys in frontend environment variables.
+
+Open the local URL printed by Vite, usually `http://localhost:5173`, create an account, then press **Run live demo**. Sensor readings and alerts are saved in that browser's local storage. Stop the demo to stop generating readings.
+
+The root `package.json` is an npm workspace for `frontend`, so these commands work directly from the project root. Alternatively, you can run them from `frontend/`. Firebase configuration in `frontend/.env` is required for authentication. To clear the saved demo data, clear site data/local storage for the Vite site in the browser's developer tools.
 
 ## Local-storage behavior
 
-The service stores data under the key `smartbag-dashboard-data`. It retains up to 500 readings and 100 alerts. Default alert limits are 15 kg, 45°C, and 20% battery. These defaults are in `frontend/src/services/localStorage.js`.
+The service stores data under a Firebase-user-specific key in browser local storage. It retains up to 500 readings and 100 alerts per account. Default alert limits are 15 kg, 45°C, and 20% battery. These defaults are in `frontend/src/services/localStorage.js`.
 
-Because storage is local to the browser, opening the dashboard in another browser/device will show a separate dashboard history. Clearing site data also removes these saved readings and alerts.
+Firebase Auth protects access to the dashboard, but localStorage is not encrypted or synced to other devices. The readings exist only in the browser where they were generated; clearing site data removes them. Do not treat browser local storage as secure shared cloud storage.
+
+Add each class subject, weekday, and start time in **My timetable**. The dashboard displays an in-app reminder at class start and can also show a browser notification if permission is enabled. Keep the dashboard open around class time; browser-only reminders cannot run when the page is closed. Timetable entries are saved per Firebase account in this browser.
+
+Firebase Authentication currently gates only the React dashboard. The optional Express/MongoDB API does not verify Firebase ID tokens; do not expose it as a protected service until token verification and authorization are added.
 
 ## Optional: connect a physical ESP32
 
@@ -98,8 +125,10 @@ See the backend source for request validation and the supported sensor JSON fiel
 
 - **`npm install` reports a missing root `package.json`:** Confirm you are in the project root containing `package.json`, then run `npm install` there. You can also run `npm install` and `npm run dev` from `frontend/`.
 - **Dashboard does not open:** Run `npm run dev` from the project root; use the URL Vite prints.
+- **Firebase setup needed:** Configure the four `VITE_FIREBASE_*` values in `frontend/.env` and restart Vite.
+- **Sign-in says operation not allowed:** Enable the Email/Password provider in Firebase Console → Authentication → Sign-in method.
 - **Storage error:** Enable site storage in the browser, or clear this site's local storage if it is full or corrupted.
 - **No readings:** Press **Run live demo**. Reloading preserves previous readings, but the demo generator starts only after you click its button.
+- **No class notification:** Keep the dashboard open, allow notifications in the browser, and confirm the class day/time in **My timetable**. The in-app reminder still appears if desktop notifications are unavailable.
 - **Offline status:** A reading older than 15 seconds is marked offline. New demo readings arrive every five seconds.
-- **Map tiles do not load:** OpenStreetMap tiles need internet access. Coordinates are also shown as text.
 - **ESP32/API data not on dashboard:** This version intentionally reads localStorage only. The optional MongoDB backend and browser local storage are separate data stores.
